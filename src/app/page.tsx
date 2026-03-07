@@ -23,7 +23,7 @@ export default function Home() {
       setErrorMessage('Er ging iets mis met de verbinding. Probeer het opnieuw.')
     },
     clientTools: {
-      end_call: async () => {
+      conversation_complete: async () => {
         const cid = conversationIdRef.current ?? ''
         await endSession()
         router.push(`/rapport?cid=${cid}`)
