@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
         leeftijdscategorie,
         conversationId: conversationId ?? '',
         transcript,
+        source: 'widget',
         submittedAt: new Date().toISOString(),
       }
 
