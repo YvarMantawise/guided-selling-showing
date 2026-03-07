@@ -89,22 +89,23 @@ export async function POST(request: NextRequest) {
 
       console.log('[submit-rapport] Webhook versturen naar:', WEBHOOK_URL)
 
-      fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(WEBHOOK_SECRET ? { secret: WEBHOOK_SECRET } : {}),
-        },
-        body: JSON.stringify(webhookPayload),
-      })
-        .then(async (res) => {
-          console.log('[submit-rapport] Webhook response status:', res.status)
-          if (!res.ok) {
-            const text = await res.text()
-            console.error('[submit-rapport] Webhook response body:', text)
-          }
+      try {
+        const webhookRes = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(WEBHOOK_SECRET ? { secret: WEBHOOK_SECRET } : {}),
+          },
+          body: JSON.stringify(webhookPayload),
         })
-        .catch((err) => console.error('[submit-rapport] Webhook fetch error:', err))
+        console.log('[submit-rapport] Webhook response status:', webhookRes.status)
+        if (!webhookRes.ok) {
+          const text = await webhookRes.text()
+          console.error('[submit-rapport] Webhook response body:', text)
+        }
+      } catch (err) {
+        console.error('[submit-rapport] Webhook fetch error:', err)
+      }
     }
 
     return NextResponse.json({ userId })
