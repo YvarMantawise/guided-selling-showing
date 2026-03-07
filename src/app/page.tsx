@@ -11,20 +11,28 @@ const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID!
 export default function Home() {
   const router = useRouter()
   const conversationIdRef = useRef<string | null>(null)
+  const shouldRedirectRef = useRef(false)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const clientTools = useMemo(() => ({
     conversation_complete: async () => {
-      const cid = conversationIdRef.current ?? ''
-      router.push(`/rapport?cid=${cid}`)
-      // endSession wordt afgehandeld door de system end_call tool
+      // Zet alleen de vlag — redirect gebeurt in onDisconnect
+      // zodat de agent eerst zijn afsluitende zin kan afmaken
+      shouldRedirectRef.current = true
     },
-  }), [router])
+  }), [])
 
   const { status, isSpeaking, startSession, endSession } = useConversation({
     onConnect: () => setConnectionStatus('connected'),
-    onDisconnect: () => setConnectionStatus('idle'),
+    onDisconnect: () => {
+      setConnectionStatus('idle')
+      if (shouldRedirectRef.current) {
+        shouldRedirectRef.current = false
+        const cid = conversationIdRef.current ?? ''
+        router.push(`/rapport?cid=${cid}`)
+      }
+    },
     onError: (message) => {
       console.error('Conversation error:', message)
       setConnectionStatus('error')
