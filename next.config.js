@@ -40,8 +40,8 @@ const nextConfig = {
             value: 'nosniff',
           },
           {
-            key: 'X-Frame-Options',
-            value: 'DENY',
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' https://*.myshopify.com https://*.shopify.com https://*.shopifypreview.com",
           },
           {
             key: 'X-XSS-Protection',
