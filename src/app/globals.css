@@ -1,0 +1,366 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
+@layer base {
+  html {
+    font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-berino-offwhite text-berino-charcoal antialiased;
+    font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  }
+
+  /* Headings met Cormorant Garamond */
+  h1, h2, h3 {
+    font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+    @apply text-berino-charcoal;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-h1 font-semibold tracking-tight;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl lg:text-h2 font-semibold tracking-tight;
+  }
+
+  h3 {
+    @apply text-2xl md:text-h3 font-medium;
+  }
+
+  h4, h5, h6 {
+    font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+    @apply text-berino-charcoal font-semibold;
+  }
+
+  h4 {
+    @apply text-xl md:text-h4;
+  }
+
+  p {
+    @apply text-body leading-relaxed text-berino-gray;
+  }
+
+  a {
+    @apply transition-colors duration-200;
+  }
+
+  /* Focus states voor accessibility */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-berino-forest;
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ============================================
+   COMPONENT STYLES
+   ============================================ */
+
+@layer components {
+  /* Container */
+  .container-berino {
+    @apply max-w-container-xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .container-narrow {
+    @apply max-w-container-md mx-auto px-4 sm:px-6;
+  }
+
+  /* Section spacing */
+  .section-padding {
+    @apply py-16 md:py-20 lg:py-section;
+  }
+
+  .section-padding-lg {
+    @apply py-20 md:py-24 lg:py-section-lg;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 
+           font-body font-semibold text-base
+           px-6 py-3 rounded-xl
+           transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn
+           bg-berino-forest text-white
+           hover:bg-berino-forest-dark
+           shadow-button hover:shadow-button-hover
+           hover:-translate-y-0.5
+           active:translate-y-0;
+  }
+
+  .btn-secondary {
+    @apply btn
+           bg-white text-berino-forest
+           border-2 border-berino-sage/30
+           hover:border-berino-forest hover:bg-berino-mint/20;
+  }
+
+  .btn-ghost {
+    @apply btn
+           bg-transparent text-berino-forest
+           hover:bg-berino-mint/30;
+  }
+
+  .btn-lg {
+    @apply px-8 py-4 text-lg;
+  }
+
+  .btn-sm {
+    @apply px-4 py-2 text-sm;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl shadow-card
+           border border-berino-mint/30
+           transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-card-hover hover:-translate-y-1;
+  }
+
+  .card-product {
+    @apply card-hover overflow-hidden;
+  }
+
+  /* Input fields */
+  .input {
+    @apply w-full px-4 py-3 
+           bg-white border border-berino-mint 
+           rounded-xl text-berino-charcoal
+           placeholder:text-berino-gray/50
+           focus:outline-none focus:border-berino-forest focus:ring-2 focus:ring-berino-forest/20
+           transition-all duration-200;
+  }
+
+  .input-lg {
+    @apply input px-5 py-4 text-lg;
+  }
+
+  /* Labels */
+  .label {
+    @apply block text-sm font-medium text-berino-charcoal mb-2;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1.5
+           px-3 py-1 rounded-full
+           text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .badge-success {
+    @apply badge bg-green-100 text-green-700;
+  }
+
+  .badge-warning {
+    @apply badge bg-amber-100 text-amber-700;
+  }
+
+  .badge-error {
+    @apply badge bg-red-100 text-red-700;
+  }
+
+  .badge-info {
+    @apply badge bg-berino-mint/50 text-berino-forest;
+  }
+
+  /* Modal overlay - with safe area support for notch devices */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 
+           bg-berino-charcoal/60 backdrop-blur-sm
+           flex items-center justify-center;
+    padding: 1rem;
+    /* Support for devices with notch/safe areas (iPhone X+, etc.) */
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .modal-content {
+    @apply bg-white rounded-3xl shadow-modal
+           w-full max-w-lg max-h-[90vh]
+           overflow-hidden
+           animate-slide-up;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    @apply h-2 bg-berino-mint/50 rounded-full overflow-hidden;
+  }
+
+  .progress-bar-fill {
+    @apply h-full bg-gradient-to-r from-berino-forest to-berino-sage
+           rounded-full transition-all duration-500 ease-out;
+  }
+
+  /* Chat styles */
+  .chat-container {
+    @apply flex flex-col h-full;
+  }
+
+  .chat-messages {
+    @apply flex-1 overflow-y-auto p-4 space-y-4;
+  }
+
+  .chat-bubble {
+    @apply max-w-[85%] px-4 py-3 rounded-2xl animate-slide-in;
+  }
+
+  .chat-bubble-user {
+    @apply chat-bubble ml-auto
+           bg-berino-forest text-white
+           rounded-br-sm;
+  }
+
+  .chat-bubble-assistant {
+    @apply chat-bubble mr-auto
+           bg-berino-cream text-berino-charcoal
+           border border-berino-mint/50
+           rounded-bl-sm;
+  }
+
+  .chat-input-container {
+    @apply p-4 border-t border-berino-mint/30 bg-white;
+  }
+
+  /* Testimonial card */
+  .testimonial-card {
+    @apply card p-6 md:p-8;
+  }
+
+  /* Feature card (hoe het werkt) */
+  .feature-card {
+    @apply text-center p-6;
+  }
+
+  .feature-icon {
+    @apply w-16 h-16 mx-auto mb-4
+           bg-berino-mint/30 rounded-2xl
+           flex items-center justify-center
+           text-berino-forest;
+  }
+
+  /* Navigation link */
+  .nav-link {
+    @apply text-berino-charcoal hover:text-berino-forest
+           font-medium transition-colors duration-200
+           relative;
+  }
+
+  .nav-link-active {
+    @apply nav-link text-berino-forest;
+  }
+
+  /* Divider */
+  .divider {
+    @apply h-px bg-berino-mint/50;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    @apply w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply bg-berino-mint/30 animate-pulse rounded;
+  }
+}
+
+/* ============================================
+   UTILITY STYLES
+   ============================================ */
+
+@layer utilities {
+  /* Text gradients */
+  .text-gradient {
+    @apply bg-gradient-to-r from-berino-forest to-berino-sage 
+           bg-clip-text text-transparent;
+  }
+
+  /* Background gradients */
+  .bg-gradient-hero {
+    background: linear-gradient(to bottom right, #FAFAF8, #F5F1EB, #CAD2C5);
+  }
+
+  .bg-gradient-subtle {
+    background: linear-gradient(to bottom, #FAFAF8, #F5F1EB);
+  }
+
+  .bg-gradient-forest {
+    @apply bg-gradient-to-br from-berino-forest to-berino-forest-dark;
+  }
+
+  /* Scroll snap */
+  .scroll-snap-x {
+    @apply overflow-x-auto snap-x snap-mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scroll-snap-x::-webkit-scrollbar {
+    display: none;
+  }
+
+  .snap-item {
+    @apply snap-start;
+  }
+
+  /* Hide scrollbar */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Prose styling voor AI responses */
+  .prose-berino {
+    @apply prose prose-sm max-w-none
+           prose-p:text-berino-charcoal prose-p:my-2
+           prose-headings:text-berino-charcoal prose-headings:font-heading
+           prose-strong:text-berino-charcoal
+           prose-ul:my-2 prose-li:my-1
+           prose-a:text-berino-forest prose-a:no-underline hover:prose-a:underline;
+  }
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    @apply bg-white text-black;
+  }
+}
