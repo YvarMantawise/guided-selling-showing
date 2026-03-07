@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useConversation } from '@elevenlabs/react'
 
@@ -14,6 +14,14 @@ export default function Home() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const clientTools = useMemo(() => ({
+    conversation_complete: async () => {
+      const cid = conversationIdRef.current ?? ''
+      router.push(`/rapport?cid=${cid}`)
+      // endSession wordt afgehandeld door de system end_call tool
+    },
+  }), [router])
+
   const { status, isSpeaking, startSession, endSession } = useConversation({
     onConnect: () => setConnectionStatus('connected'),
     onDisconnect: () => setConnectionStatus('idle'),
@@ -22,13 +30,7 @@ export default function Home() {
       setConnectionStatus('error')
       setErrorMessage('Er ging iets mis met de verbinding. Probeer het opnieuw.')
     },
-    clientTools: {
-      conversation_complete: async () => {
-        const cid = conversationIdRef.current ?? ''
-        await endSession()
-        router.push(`/rapport?cid=${cid}`)
-      },
-    },
+    clientTools,
   })
 
   const handleStart = useCallback(async () => {
