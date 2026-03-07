@@ -50,7 +50,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { naam, email, geslacht, leeftijdscategorie, conversationId } = body
 
+    console.log('[submit-rapport] Ontvangen payload:', { naam, email, geslacht, leeftijdscategorie, conversationId })
+
     if (!naam || !email || !geslacht || !leeftijdscategorie) {
+      console.warn('[submit-rapport] Validatie mislukt: verplichte velden ontbreken')
       return NextResponse.json(
         { error: 'Naam, email, geslacht en leeftijdscategorie zijn verplicht.' },
         { status: 400 }
@@ -58,15 +61,20 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = randomUUID()
+    console.log('[submit-rapport] userId aangemaakt:', userId)
 
     // Create a pending session so the advies page can start polling immediately
     createSession(userId, naam, email)
 
     // Fetch transcript from ElevenLabs (non-blocking on failure)
+    console.log('[submit-rapport] Transcript ophalen voor conversationId:', conversationId)
     const transcript = await fetchTranscript(conversationId ?? '')
+    console.log('[submit-rapport] Transcript lengte:', transcript.length, 'tekens')
 
     // Fire webhook to Make.com (do not await — fire and forget)
-    if (WEBHOOK_URL) {
+    if (!WEBHOOK_URL) {
+      console.error('[submit-rapport] WEBHOOK_URL is niet ingesteld — webhook wordt overgeslagen')
+    } else {
       const webhookPayload = {
         userId,
         naam,
@@ -79,6 +87,8 @@ export async function POST(request: NextRequest) {
         submittedAt: new Date().toISOString(),
       }
 
+      console.log('[submit-rapport] Webhook versturen naar:', WEBHOOK_URL)
+
       fetch(WEBHOOK_URL, {
         method: 'POST',
         headers: {
@@ -86,12 +96,20 @@ export async function POST(request: NextRequest) {
           ...(WEBHOOK_SECRET ? { secret: WEBHOOK_SECRET } : {}),
         },
         body: JSON.stringify(webhookPayload),
-      }).catch((err) => console.error('Webhook error:', err))
+      })
+        .then(async (res) => {
+          console.log('[submit-rapport] Webhook response status:', res.status)
+          if (!res.ok) {
+            const text = await res.text()
+            console.error('[submit-rapport] Webhook response body:', text)
+          }
+        })
+        .catch((err) => console.error('[submit-rapport] Webhook fetch error:', err))
     }
 
     return NextResponse.json({ userId })
   } catch (err) {
-    console.error('submit-rapport error:', err)
+    console.error('[submit-rapport] Onverwachte fout:', err)
     return NextResponse.json(
       { error: 'Er ging iets mis. Probeer het opnieuw.' },
       { status: 500 }
