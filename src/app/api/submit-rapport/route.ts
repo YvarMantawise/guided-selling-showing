@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(WEBHOOK_SECRET ? { secret: WEBHOOK_SECRET } : {}),
+            ...(WEBHOOK_SECRET ? { 'x-make-apikey': WEBHOOK_SECRET } : {}),
           },
           body: JSON.stringify(webhookPayload),
         })
