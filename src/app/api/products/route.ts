@@ -19,9 +19,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Limit to 10 products max
     const limitedHandles = handles.slice(0, 10)
-    
     const products = await getProductsByHandles(limitedHandles)
 
     return NextResponse.json({ products })

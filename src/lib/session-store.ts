@@ -7,7 +7,7 @@
 export interface AdviesResult {
   samenvatting: string
   diagnose: string[]
-  aanbevolenProducten: string[] // Shopify product handles
+  aanbevolenProducten: string[]
 }
 
 export interface AnalyseSessie {

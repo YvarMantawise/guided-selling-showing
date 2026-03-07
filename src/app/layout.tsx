@@ -2,8 +2,7 @@ import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
 import { Cormorant_Garamond, DM_Sans } from "next/font/google"
 import "./globals.css"
-import Header from "@/components/layout/Header"
-import Footer from "@/components/layout/Footer"
+import EmbedShell from "@/components/layout/EmbedShell"
 
 // Heading font - elegant serif
 const cormorant = Cormorant_Garamond({
@@ -23,41 +22,22 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Haar & Hoofdhuid Specialist",
-    template: "%s | Haar & Hoofdhuid Specialist",
+    default: "Guided Selling",
+    template: "%s | Guided Selling",
   },
   description:
-    "Ontdek de gezondheid van jouw haar en hoofdhuid met onze AI-gestuurde analyse. Krijg persoonlijk advies en product aanbevelingen binnen enkele minuten.",
-  keywords: [
-    "haar",
-    "hoofdhuid",
-    "analyse",
-    "haarverzorging",
-    "hoofdhuidproblemen",
-    "droge hoofdhuid",
-    "roos",
-    "haarverlies",
-    "haarproducten",
-  ],
-  authors: [{ name: "Berino" }],
+    "Krijg persoonlijk productadvies via een AI-gesprek. Snel, eenvoudig en op maat.",
+  authors: [{ name: "Mantawise" }],
   openGraph: {
     type: "website",
     locale: "nl_NL",
-    url: "https://haarenhoofdhuidspecialist.vercel.app",
-    title: "Haar & Hoofdhuid Specialist",
-    description:
-      "Ontdek de gezondheid van jouw haar en hoofdhuid met onze AI-gestuurde analyse.",
-    siteName: "Haar & Hoofdhuid Specialist",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Haar & Hoofdhuid Specialist",
-    description:
-      "Ontdek de gezondheid van jouw haar en hoofdhuid met onze AI-gestuurde analyse.",
+    title: "Guided Selling",
+    description: "Krijg persoonlijk productadvies via een AI-gesprek.",
+    siteName: "Guided Selling",
   },
   robots: {
-    index: true,
-    follow: true,
+    index: false,
+    follow: false,
   },
 }
 
@@ -80,9 +60,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <EmbedShell>{children}</EmbedShell>
         <Analytics />
       </body>
     </html>
