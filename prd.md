@@ -53,7 +53,22 @@ Dit is de **showing variant** van `guided-selling`. Verschil:
 Agent → toon_product({ handle: "product-handle" })
   └── Browser → POST /api/products { handles: ["product-handle"] }
       └── Shopify Admin API → productdata
-          └── Inline kaart: afbeelding + titel + prijs + "Toevoegen" knop
+          ├── Inline kaart in widget: afbeelding + titel + prijs + "Toevoegen" knop
+          └── postMessage naar parent → webshop opent productpagina in nieuw tabblad
+```
+
+### postMessage bridge
+
+De widget stuurt bij elk `toon_product` een bericht naar de webshop zodat die zelf kan reageren.
+
+**Integratie op de webshop (naast het widget script):**
+
+```html
+<script>
+  window.addEventListener('gs:toon_product', function(e) {
+    window.open('/products/' + e.detail.handle, '_blank')
+  })
+</script>
 ```
 
 ### Huidige tech stack

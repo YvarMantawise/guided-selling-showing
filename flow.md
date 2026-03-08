@@ -52,6 +52,39 @@ Agent (ElevenLabs) → toon_product({ handle: "product-handle" })
           └── Shopify Admin API → product data
               └── setShownProducts([...prev, product])
                   └── Inline kaart gerenderd in de widget
+              └── window.parent.postMessage({ type: 'gs-toon_product', handle, product })
+                  └── widget.js ontvangt bericht
+                      └── window.dispatchEvent(new CustomEvent('gs:toon_product', { detail }))
+                          └── Webshop luistert → opent productpagina in nieuw tabblad
+```
+
+## postMessage bridge naar de webshop
+
+De widget stuurt bij elk `toon_product` een bericht naar de parent pagina (de webshop). De webshop kan hier op reageren met een eigen script.
+
+**Integratie op de webshop:**
+
+```html
+<script
+  src="https://guided-selling-showing.vercel.app/widget.js"
+  data-url="https://guided-selling-showing.vercel.app"
+  data-tekst="Gratis Advies"
+  data-color="#1B4332"
+></script>
+
+<script>
+  window.addEventListener('gs:toon_product', function(e) {
+    window.open('/products/' + e.detail.handle, '_blank')
+  })
+</script>
+```
+
+**Event detail:**
+```javascript
+e.detail = {
+  handle: "product-handle",   // Shopify product handle
+  product: { ... }            // Volledige productdata (titel, prijs, afbeelding, etc.)
+}
 ```
 
 ## Sessie states
