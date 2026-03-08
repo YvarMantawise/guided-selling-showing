@@ -142,6 +142,34 @@
   var closeBtn = document.getElementById('gs-close');
   var isOpen = false;
 
+  var WARNING_MSG = 'Je bent midden in een gesprek. Als je de pagina verlaat, wordt het gesprek beëindigd.\n\nWil je toch doorgaan?';
+
+  // ── Navigation guard ─────────────────────────────────────────────────────────
+
+  // Beforeunload: vangt terug-knop, adresbalk en andere navigatie op
+  function handleBeforeUnload(e) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+
+  // Link-klik interceptor: toont een bevestigingsdialoog bij klikken op links
+  document.addEventListener('click', function (e) {
+    if (!isOpen) return;
+
+    var anchor = e.target.closest('a');
+    if (!anchor) return;
+
+    var href = anchor.getAttribute('href');
+    // Geen waarschuwing voor: lege links, ankers (#), javascript:, nieuwe tab
+    if (!href || href === '#' || href.startsWith('javascript') || anchor.target === '_blank') return;
+
+    var confirmed = window.confirm(WARNING_MSG);
+    if (!confirmed) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true); // capture-fase zodat dit vóór Shopify-handlers afgevuurd wordt
+
   // ── Open / close ─────────────────────────────────────────────────────────────
   function openWidget() {
     if (isOpen) return;
@@ -149,6 +177,7 @@
     iframe.src = appUrl + '/?embed=1';
     panel.classList.add('gs-open');
     btn.classList.add('gs-hidden');
+    window.addEventListener('beforeunload', handleBeforeUnload);
     closeBtn.focus();
   }
 
@@ -157,6 +186,7 @@
     isOpen = false;
     panel.classList.remove('gs-open');
     btn.classList.remove('gs-hidden');
+    window.removeEventListener('beforeunload', handleBeforeUnload);
     setTimeout(function () { iframe.src = ''; }, 300);
     btn.focus();
   }
