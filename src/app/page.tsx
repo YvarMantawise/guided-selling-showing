@@ -44,10 +44,13 @@ function HomeContent() {
           if (res.ok) {
             const data = await res.json()
             if (data.products?.length > 0) {
+              const product = data.products[0]
               setShownProducts(prev => {
                 if (prev.find(p => p.handle === handle)) return prev
-                return [...prev, data.products[0]]
+                return [...prev, product]
               })
+              // Notify parent page (webshop) so it can react to the product
+              window.parent.postMessage({ type: 'gs-toon_product', handle, product }, '*')
             }
           }
         } catch {

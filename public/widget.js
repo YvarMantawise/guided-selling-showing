@@ -212,6 +212,13 @@
   });
 
   window.addEventListener('message', function (e) {
-    if (e.data && e.data.type === 'gs-close') closeWidget();
+    if (!e.data) return;
+    if (e.data.type === 'gs-close') closeWidget();
+    if (e.data.type === 'gs-toon_product') {
+      // Re-dispatch as a custom DOM event so the webshop can listen to it
+      window.dispatchEvent(new CustomEvent('gs:toon_product', {
+        detail: { handle: e.data.handle, product: e.data.product }
+      }));
+    }
   });
 })();
