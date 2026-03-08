@@ -1,17 +1,14 @@
 // src/lib/shopify.ts
 // ============================================
-// SHOPIFY ADMIN API CLIENT (met Client Credentials)
+// SHOPIFY ADMIN API CLIENT (met statisch access token)
 // ============================================
-// Dit bestand gebruikt de Client Credentials flow om producten op te halen
-// via de Admin API in plaats van de Storefront API
+// Gebruikt een statisch Admin API access token (shpat_xxx) van een Shopify
+// Custom App. De OAuth Client Credentials flow werkt niet vanuit Vercel omdat
+// admin.shopify.com achter Cloudflare bot protection zit die datacenter IPs blokkeert.
 
 // Environment variables
-const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN // bijv: voorbeeld-store.myshopify.com
-const clientId = process.env.SHOPIFY_CLIENT_ID
-const clientSecret = process.env.SHOPIFY_CLIENT_SECRET
-
-// Cache voor de access token (verloopt na 24 uur)
-let cachedToken: { token: string; expiresAt: number } | null = null
+const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN // bijv: berino-shop.myshopify.com
+const accessToken = process.env.SHOPIFY_ACCESS_TOKEN // shpat_xxx van Custom App
 
 // ============================================
 // TYPES
@@ -65,77 +62,27 @@ export interface ShopifyCollection {
 }
 
 // ============================================
-// CLIENT CREDENTIALS TOKEN FLOW
-// ============================================
-
-async function getAccessToken(): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt) {
-    return cachedToken.token
-  }
-
-  if (!shopDomain || !clientId || !clientSecret) {
-    throw new Error(
-      'Shopify configuratie ontbreekt! Zorg dat SHOPIFY_SHOP_DOMAIN, SHOPIFY_CLIENT_ID en SHOPIFY_CLIENT_SECRET zijn ingesteld.'
-    )
-  }
-
-  const tokenUrl = `https://${shopDomain}/admin/oauth/access_token`
-
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    console.error('Token request failed:', errorText)
-    throw new Error(`Kon geen access token krijgen: ${response.status} ${response.statusText}`)
-  }
-
-  const data = await response.json()
-
-  cachedToken = {
-    token: data.access_token,
-    expiresAt: Date.now() + (23 * 60 * 60 * 1000),
-  }
-
-  return data.access_token
-}
-
-// ============================================
-// ADMIN API FETCH HELPER (met retry bij 401)
+// ADMIN API FETCH HELPER
 // ============================================
 
 async function adminApiFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+  if (!shopDomain || !accessToken) {
+    throw new Error(
+      'Shopify configuratie ontbreekt! Zorg dat SHOPIFY_SHOP_DOMAIN en SHOPIFY_ACCESS_TOKEN zijn ingesteld.'
+    )
+  }
+
   const endpoint = `https://${shopDomain}/admin/api/2024-01/graphql.json`
 
-  async function doFetch(): Promise<Response> {
-    const token = await getAccessToken()
-    return fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': token,
-      },
-      body: JSON.stringify({ query, variables }),
-      next: { revalidate: 60 },
-    } as RequestInit)
-  }
-
-  let response = await doFetch()
-
-  if (response.status === 401) {
-    console.warn('401 ontvangen van Admin API — token cache wordt gewist en opnieuw geprobeerd...')
-    cachedToken = null
-    response = await doFetch()
-  }
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query, variables }),
+    next: { revalidate: 60 },
+  } as RequestInit)
 
   if (!response.ok) {
     throw new Error(`Admin API fout: ${response.status} ${response.statusText}`)

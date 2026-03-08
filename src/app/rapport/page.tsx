@@ -35,7 +35,7 @@ function RapportForm() {
       }
 
       // Open rapport in nieuwe tab (widget blijft open op de Shopify pagina)
-      window.open(`/advies/${data.userId}`, '_blank')
+      window.open(`/advies/${data.userId}?naam=${encodeURIComponent(naam)}`, '_blank')
 
       // Sluit de widget als deze pagina in een iframe draait
       if (window.parent !== window) {
