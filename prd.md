@@ -7,15 +7,16 @@
 
 ## Wat doet deze applicatie?
 
-Een **embeddable voice-AI widget** voor Shopify webshops waarbij de AI **tijdens het gesprek** al producten toont via de `toon_product` client tool. De agent heeft via MCP toegang tot de productcatalogus.
+Een **embeddable voice-AI widget** voor Shopify webshops waarbij de AI **tijdens het gesprek** al producten toont via de `toon_product` client tool. De agent zoekt producten op via een webhook tool (`zoek_producten`) die de Shopify Admin API aanroept.
 
 Dit is de **showing variant** van `guided-selling`. Verschil:
 
 | | `guided-selling` | `guided-selling-showing` |
 |---|---|---|
 | Producten tonen | Achteraf, op advies pagina | Inline tijdens gesprek |
-| Agent | Standaard | Showing agent + MCP |
+| Agent | Standaard | Showing agent |
 | Client tool | — | `toon_product` |
+| Webhook tool | — | `zoek_producten` → `/api/shopify-search` |
 
 ### Huidige flow
 
@@ -27,7 +28,7 @@ Dit is de **showing variant** van `guided-selling`. Verschil:
 2. Gesprek (/)
    └── Klant klikt op de microfoonknop
        └── ElevenLabs voice AI start via WebRTC
-           └── AI stelt vragen en zoekt via MCP de juiste producten op
+           └── AI stelt vragen en zoekt producten op via zoek_producten webhook tool
                └── Agent roept toon_product({ handle }) aan
                    └── Browser toont productkaart inline (afbeelding, prijs, "Toevoegen")
 
@@ -80,7 +81,8 @@ De widget stuurt bij elk `toon_product` een bericht naar de webshop zodat die ze
 | Hosting | Vercel |
 | Voice AI | ElevenLabs Conversational AI (WebRTC via `@elevenlabs/react`) |
 | Client tool | `toon_product` — toont producten inline tijdens gesprek |
-| MCP | Shopify MCP — agent zoekt zelf product handles op |
+| Webhook tool | `zoek_producten` — ElevenLabs roept `/api/shopify-search` aan |
+| Productzoekopdracht | Shopify Admin API via `searchProducts()` in `src/lib/shopify.ts` |
 | Widget | Vanilla JS drop-in script (`public/widget.js`) |
 | E-commerce | Shopify Admin API (OAuth Client Credentials) |
 | Automation | Make.com (webhook + AI verwerking van transcript) |
@@ -89,7 +91,8 @@ De widget stuurt bij elk `toon_product` een bericht naar de webshop zodat die ze
 
 | Endpoint | Method | Beschrijving |
 |----------|--------|--------------|
-| `/api/products` | POST | Haalt producten op (ook voor `toon_product` client tool) |
+| `/api/products` | POST | Haalt producten op via handle (voor `toon_product` client tool) |
+| `/api/shopify-search` | POST | Zoekt producten via Shopify Admin API (voor `zoek_producten` webhook tool) |
 | `/api/submit-rapport` | POST | Ontvangt formulier, haalt transcript op, stuurt webhook |
 | `/api/advies/[userId]` | GET | Poll voor advies status |
 | `/api/advies/[userId]` | POST | Callback van Make.com met resultaat |

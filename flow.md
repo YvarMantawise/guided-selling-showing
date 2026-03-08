@@ -16,7 +16,8 @@ Gesprek (/ + ?embed=1)
 └── Klant klikt microfoonknop
     └── Microfoon toegang aanvragen
         └── ElevenLabs WebRTC sessie start (showing agent)
-            └── Voice AI stelt vragen + zoekt producten op via MCP
+            └── Voice AI stelt vragen + roept zoek_producten webhook tool aan
+                    └── POST /api/shopify-search → Shopify Admin API → product handles
                 └── Agent roept toon_product({ handle }) aan
                     └── Browser → POST /api/products
                         └── Inline productkaart getoond (afbeelding, prijs, "Toevoegen")
@@ -100,8 +101,8 @@ created → pending → ready
 | | `guided-selling` | `guided-selling-showing` (deze repo) |
 |---|---|---|
 | Producten tonen | Achteraf op advies pagina | Inline tijdens gesprek via `toon_product` |
-| Agent | Standaard | Showing agent + MCP |
-| MCP | Nee | Ja — Shopify MCP voor product lookup |
+| Agent | Standaard | Showing agent |
+| Productzoekopdracht | — | `zoek_producten` webhook tool → `/api/shopify-search` → Shopify Admin API |
 
 ---
 
