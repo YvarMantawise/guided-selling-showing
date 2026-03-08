@@ -480,6 +480,76 @@ export async function getCollectionProducts(_handle: string, _first: number = 20
   return null
 }
 
+const SEARCH_PRODUCTS_QUERY = `
+  query searchProducts($query: String!) {
+    products(first: 5, query: $query) {
+      edges {
+        node {
+          id
+          title
+          handle
+          description
+          featuredImage {
+            url
+            altText
+            width
+            height
+          }
+          variants(first: 1) {
+            edges {
+              node {
+                id
+                availableForSale
+                price
+              }
+            }
+          }
+          priceRangeV2 {
+            minVariantPrice {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+  }
+`
+
+export interface SearchResult {
+  handle: string
+  title: string
+  price: string
+  currency: string
+  image: string | null
+  description: string
+}
+
+export async function searchProducts(query: string): Promise<SearchResult[]> {
+  try {
+    const searchQuery = `(title:*${query}* OR tag:${query}) AND status:active`
+    const data = await adminApiFetch<{
+      products: { edges: Array<{ node: Record<string, unknown> }> }
+    }>(SEARCH_PRODUCTS_QUERY, { query: searchQuery })
+
+    return data.products.edges.map(({ node }) => {
+      const priceRange = node.priceRangeV2 as { minVariantPrice: ShopifyPrice } | undefined
+      const image = node.featuredImage as ShopifyImage | null
+      return {
+        handle: node.handle as string,
+        title: node.title as string,
+        price: priceRange?.minVariantPrice?.amount ?? '0',
+        currency: priceRange?.minVariantPrice?.currencyCode ?? 'EUR',
+        image: image?.url ?? null,
+        description: ((node.description as string) || '').slice(0, 200),
+      }
+    })
+  } catch (error) {
+    console.error('Fout bij zoeken producten:', error)
+    return []
+  }
+}
+
 // ============================================
 // HULPFUNCTIES
 // ============================================
