@@ -17,7 +17,7 @@
     '  position: fixed;',
     '  bottom: 24px;',
     '  right: 24px;',
-    '  z-index: 2147483646;',
+    '  z-index: 2147483645;',
     '  display: flex;',
     '  align-items: center;',
     '  gap: 8px;',
@@ -31,54 +31,60 @@
     '  font-weight: 600;',
     '  cursor: pointer;',
     '  box-shadow: 0 4px 20px rgba(0,0,0,0.22);',
-    '  transition: transform 0.15s ease, box-shadow 0.15s ease;',
+    '  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;',
     '  line-height: 1;',
     '}',
     '#gs-btn:hover {',
     '  transform: translateY(-2px);',
     '  box-shadow: 0 8px 28px rgba(0,0,0,0.28);',
     '}',
+    '#gs-btn.gs-hidden {',
+    '  opacity: 0;',
+    '  pointer-events: none;',
+    '}',
     '#gs-btn svg { flex-shrink: 0; }',
 
-    '#gs-overlay {',
-    '  display: none;',
+    '#gs-panel {',
     '  position: fixed;',
-    '  inset: 0;',
+    '  top: 0;',
+    '  right: 0;',
+    '  bottom: 0;',
     '  z-index: 2147483647;',
-    '  background: rgba(0,0,0,0.55);',
-    '  align-items: center;',
-    '  justify-content: center;',
-    '  padding: 16px;',
-    '  backdrop-filter: blur(2px);',
-    '}',
-    '#gs-overlay.gs-open { display: flex; }',
-
-    '#gs-modal {',
-    '  position: relative;',
-    '  width: 100%;',
-    '  max-width: 480px;',
-    '  height: min(680px, 90vh);',
+    '  width: 420px;',
+    '  max-width: 100vw;',
     '  background: #fff;',
-    '  border-radius: 20px;',
-    '  overflow: hidden;',
-    '  box-shadow: 0 24px 64px rgba(0,0,0,0.35);',
-    '  animation: gs-pop 0.2s ease;',
+    '  box-shadow: -8px 0 40px rgba(0,0,0,0.18);',
+    '  transform: translateX(100%);',
+    '  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);',
+    '  display: flex;',
+    '  flex-direction: column;',
     '}',
-    '@keyframes gs-pop {',
-    '  from { opacity: 0; transform: scale(0.96) translateY(8px); }',
-    '  to   { opacity: 1; transform: scale(1)    translateY(0);   }',
+    '#gs-panel.gs-open {',
+    '  transform: translateX(0);',
     '}',
 
+    '#gs-panel-header {',
+    '  display: flex;',
+    '  align-items: center;',
+    '  justify-content: space-between;',
+    '  padding: 14px 16px;',
+    '  border-bottom: 1px solid rgba(0,0,0,0.08);',
+    '  background: ' + buttonColor + ';',
+    '  flex-shrink: 0;',
+    '}',
+    '#gs-panel-title {',
+    '  font-family: system-ui, -apple-system, sans-serif;',
+    '  font-size: 15px;',
+    '  font-weight: 600;',
+    '  color: #fff;',
+    '  margin: 0;',
+    '}',
     '#gs-close {',
-    '  position: absolute;',
-    '  top: 12px;',
-    '  right: 12px;',
-    '  z-index: 1;',
     '  width: 32px;',
     '  height: 32px;',
     '  border: none;',
     '  border-radius: 50%;',
-    '  background: rgba(0,0,0,0.18);',
+    '  background: rgba(255,255,255,0.2);',
     '  color: #fff;',
     '  font-size: 16px;',
     '  line-height: 1;',
@@ -87,23 +93,20 @@
     '  align-items: center;',
     '  justify-content: center;',
     '  transition: background 0.15s;',
+    '  flex-shrink: 0;',
     '}',
-    '#gs-close:hover { background: rgba(0,0,0,0.32); }',
+    '#gs-close:hover { background: rgba(255,255,255,0.32); }',
 
     '#gs-iframe {',
     '  width: 100%;',
-    '  height: 100%;',
+    '  flex: 1;',
     '  border: none;',
     '  display: block;',
+    '  min-height: 0;',
     '}',
 
-    '@media (max-width: 520px) {',
-    '  #gs-modal {',
-    '    max-width: 100%;',
-    '    height: 100%;',
-    '    border-radius: 0;',
-    '  }',
-    '  #gs-overlay { padding: 0; }',
+    '@media (max-width: 480px) {',
+    '  #gs-panel { width: 100vw; }',
     '}',
   ].join('\n');
 
@@ -122,18 +125,18 @@
     buttonText;
   document.body.appendChild(btn);
 
-  // ── Modal overlay ────────────────────────────────────────────────────────────
-  var overlay = document.createElement('div');
-  overlay.id = 'gs-overlay';
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', buttonText);
-  overlay.innerHTML =
-    '<div id="gs-modal">' +
+  // ── Side panel ───────────────────────────────────────────────────────────────
+  var panel = document.createElement('div');
+  panel.id = 'gs-panel';
+  panel.setAttribute('role', 'complementary');
+  panel.setAttribute('aria-label', buttonText);
+  panel.innerHTML =
+    '<div id="gs-panel-header">' +
+      '<span id="gs-panel-title">' + buttonText + '</span>' +
       '<button id="gs-close" aria-label="Sluiten">&#x2715;</button>' +
-      '<iframe id="gs-iframe" src="" allow="microphone" allowfullscreen></iframe>' +
-    '</div>';
-  document.body.appendChild(overlay);
+    '</div>' +
+    '<iframe id="gs-iframe" src="" allow="microphone" allowfullscreen></iframe>';
+  document.body.appendChild(panel);
 
   var iframe = document.getElementById('gs-iframe');
   var closeBtn = document.getElementById('gs-close');
@@ -144,17 +147,16 @@
     if (isOpen) return;
     isOpen = true;
     iframe.src = appUrl + '/?embed=1';
-    overlay.classList.add('gs-open');
-    document.body.style.overflow = 'hidden';
+    panel.classList.add('gs-open');
+    btn.classList.add('gs-hidden');
     closeBtn.focus();
   }
 
   function closeWidget() {
     if (!isOpen) return;
     isOpen = false;
-    overlay.classList.remove('gs-open');
-    document.body.style.overflow = '';
-    // Reset iframe na korte delay zodat de sluit-animatie klaar is
+    panel.classList.remove('gs-open');
+    btn.classList.remove('gs-hidden');
     setTimeout(function () { iframe.src = ''; }, 300);
     btn.focus();
   }
@@ -163,17 +165,10 @@
   btn.addEventListener('click', openWidget);
   closeBtn.addEventListener('click', closeWidget);
 
-  // Klik buiten modal sluit de widget
-  overlay.addEventListener('click', function (e) {
-    if (e.target === overlay) closeWidget();
-  });
-
-  // Escape-toets sluit de widget
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && isOpen) closeWidget();
   });
 
-  // postMessage van iframe (na form submit) sluit de widget
   window.addEventListener('message', function (e) {
     if (e.data && e.data.type === 'gs-close') closeWidget();
   });
