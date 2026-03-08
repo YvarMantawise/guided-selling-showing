@@ -1,4 +1,100 @@
-# PRD: Berino AI Hoofdhuid Analyse Platform
+# PRD: Berino Guided Selling Widget — Showing Agent
+
+> **Huidige implementatie** (bijgewerkt maart 2026) — zie onderstaande sectie voor de actuele architectuur.
+> De rest van dit document beschrijft de originele opzet en kan afwijken van de huidige staat.
+
+---
+
+## Wat doet deze applicatie?
+
+Een **embeddable voice-AI widget** voor Shopify webshops waarbij de AI **tijdens het gesprek** al producten toont via de `toon_product` client tool. De agent heeft via MCP toegang tot de productcatalogus.
+
+Dit is de **showing variant** van `guided-selling`. Verschil:
+
+| | `guided-selling` | `guided-selling-showing` |
+|---|---|---|
+| Producten tonen | Achteraf, op advies pagina | Inline tijdens gesprek |
+| Agent | Standaard | Showing agent + MCP |
+| Client tool | — | `toon_product` |
+
+### Huidige flow
+
+```
+1. Widget (public/widget.js)
+   └── Floating knop op de webshop
+       └── Opent een popup iframe (380×560px)
+
+2. Gesprek (/)
+   └── Klant klikt op de microfoonknop
+       └── ElevenLabs voice AI start via WebRTC
+           └── AI stelt vragen en zoekt via MCP de juiste producten op
+               └── Agent roept toon_product({ handle }) aan
+                   └── Browser toont productkaart inline (afbeelding, prijs, "Toevoegen")
+
+3. Rapport formulier (/rapport)
+   └── Na het gesprek vult de klant in:
+       naam, e-mail, geslacht, leeftijdscategorie
+       └── → POST /api/submit-rapport
+
+4. Verwerking (/api/submit-rapport)
+   └── Haalt het transcript op via ElevenLabs API
+       └── Maakt een sessie aan (in-memory)
+           └── Stuurt alles naar Make.com webhook
+
+5. Advies (/advies/[userId])
+   └── Pollt elke 3 seconden op de sessie
+       └── Zodra Make.com het advies terugschrijft:
+           toont samenvatting + diagnose + aanbevolen producten
+```
+
+### Client tool: `toon_product`
+
+```
+Agent → toon_product({ handle: "product-handle" })
+  └── Browser → POST /api/products { handles: ["product-handle"] }
+      └── Shopify Admin API → productdata
+          └── Inline kaart: afbeelding + titel + prijs + "Toevoegen" knop
+```
+
+### Huidige tech stack
+
+| Component | Technologie |
+|-----------|-------------|
+| Frontend | Next.js 14+ (App Router) |
+| Styling | Tailwind CSS |
+| Hosting | Vercel |
+| Voice AI | ElevenLabs Conversational AI (WebRTC via `@elevenlabs/react`) |
+| Client tool | `toon_product` — toont producten inline tijdens gesprek |
+| MCP | Shopify MCP — agent zoekt zelf product handles op |
+| Widget | Vanilla JS drop-in script (`public/widget.js`) |
+| E-commerce | Shopify Admin API (OAuth Client Credentials) |
+| Automation | Make.com (webhook + AI verwerking van transcript) |
+
+### Huidige API routes
+
+| Endpoint | Method | Beschrijving |
+|----------|--------|--------------|
+| `/api/products` | POST | Haalt producten op (ook voor `toon_product` client tool) |
+| `/api/submit-rapport` | POST | Ontvangt formulier, haalt transcript op, stuurt webhook |
+| `/api/advies/[userId]` | GET | Poll voor advies status |
+| `/api/advies/[userId]` | POST | Callback van Make.com met resultaat |
+
+### Environment variables
+
+```bash
+NEXT_PUBLIC_ELEVENLABS_AGENT_ID=     # ElevenLabs showing agent ID
+ELEVENLABS_API_KEY=                  # Voor transcript ophalen
+SHOPIFY_SHOP_DOMAIN=                 # Admin API
+SHOPIFY_CLIENT_ID=
+SHOPIFY_CLIENT_SECRET=
+NEXT_PUBLIC_SHOPIFY_SHOP_DOMAIN=     # Voor cart URL (client-side)
+WEBHOOK_URL=                         # Make.com webhook
+WEBHOOK_SECRET=                      # Optioneel
+```
+
+---
+
+# Originele PRD (historisch)
 
 ## Problem Statement
 

@@ -1,4 +1,78 @@
-# FLOW.md - Berino AI Hoofdhuid Analyse
+# FLOW.md - Berino Guided Selling Widget — Showing Agent
+
+> **Huidige implementatie** (bijgewerkt maart 2026) — zie onderstaande sectie voor de actuele flow.
+> De rest van dit document beschrijft de originele opzet en kan afwijken van de huidige staat.
+
+---
+
+## Huidige flow
+
+```
+Widget (widget.js)
+└── Floating knop op webshop
+    └── Klik → popup iframe opent (380×560px, ?embed=1)
+
+Gesprek (/ + ?embed=1)
+└── Klant klikt microfoonknop
+    └── Microfoon toegang aanvragen
+        └── ElevenLabs WebRTC sessie start (showing agent)
+            └── Voice AI stelt vragen + zoekt producten op via MCP
+                └── Agent roept toon_product({ handle }) aan
+                    └── Browser → POST /api/products
+                        └── Inline productkaart getoond (afbeelding, prijs, "Toevoegen")
+                └── onDisconnect → redirect naar /rapport?cid=[conversationId]
+
+Rapport formulier (/rapport)
+└── Klant vult in: naam, e-mail, geslacht, leeftijdscategorie
+    └── POST /api/submit-rapport
+        ├── ElevenLabs API → transcript ophalen
+        ├── createSession(userId) → in-memory sessie aanmaken
+        └── Make.com webhook → transcript + klantdata versturen
+            └── Response: { userId }
+                └── Redirect → /advies/[userId]?naam=[naam]  (nieuw tabblad)
+
+Advies pagina (/advies/[userId])
+└── Poll GET /api/advies/[userId] elke 3 sec (max 2 min)
+    └── Make.com POST /api/advies/[userId] met adviesdata
+        └── Sessie update: status = 'ready'
+            └── Frontend toont:
+                ├── Samenvatting
+                ├── Diagnose
+                └── Productaanbevelingen
+                    └── POST /api/products → Shopify Admin API
+                        └── Productkaarten met afbeelding, prijs, "Toevoegen" knop
+```
+
+## toon_product client tool
+
+```
+Agent (ElevenLabs) → toon_product({ handle: "product-handle" })
+  └── useConversation clientTools → browser-side handler
+      └── POST /api/products { handles: ["product-handle"] }
+          └── Shopify Admin API → product data
+              └── setShownProducts([...prev, product])
+                  └── Inline kaart gerenderd in de widget
+```
+
+## Sessie states
+
+```
+created → pending → ready
+                 └→ error
+                 └→ expired (timeout > 2 min)
+```
+
+## Verschil met guided-selling
+
+| | `guided-selling` | `guided-selling-showing` (deze repo) |
+|---|---|---|
+| Producten tonen | Achteraf op advies pagina | Inline tijdens gesprek via `toon_product` |
+| Agent | Standaard | Showing agent + MCP |
+| MCP | Nee | Ja — Shopify MCP voor product lookup |
+
+---
+
+# Originele FLOW (historisch)
 
 ## Overzicht
 
