@@ -1,14 +1,17 @@
 // src/lib/shopify.ts
 // ============================================
-// SHOPIFY ADMIN API CLIENT (met statisch access token)
+// SHOPIFY ADMIN API CLIENT (met Client Credentials)
 // ============================================
-// Gebruikt een statisch Admin API access token (shpat_xxx) van een Shopify
-// Custom App. De OAuth Client Credentials flow werkt niet vanuit Vercel omdat
-// admin.shopify.com achter Cloudflare bot protection zit die datacenter IPs blokkeert.
+// Dit bestand gebruikt de Client Credentials flow om producten op te halen
+// via de Admin API in plaats van de Storefront API
 
 // Environment variables
-const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN // bijv: berino-shop.myshopify.com
-const accessToken = process.env.SHOPIFY_ACCESS_TOKEN // shpat_xxx van Custom App
+const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN // bijv: voorbeeld-store.myshopify.com
+const clientId = process.env.SHOPIFY_CLIENT_ID
+const clientSecret = process.env.SHOPIFY_CLIENT_SECRET
+
+// Cache voor de access token (verloopt na 24 uur)
+let cachedToken: { token: string; expiresAt: number } | null = null
 
 // ============================================
 // TYPES
@@ -62,27 +65,86 @@ export interface ShopifyCollection {
 }
 
 // ============================================
-// ADMIN API FETCH HELPER
+// CLIENT CREDENTIALS TOKEN FLOW
 // ============================================
 
-async function adminApiFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  if (!shopDomain || !accessToken) {
+/**
+ * Haal een access token op via de Client Credentials flow
+ * Tokens zijn 24 uur geldig, we cachen ze
+ */
+async function getAccessToken(): Promise<string> {
+  // Check of we een geldige cached token hebben
+  if (cachedToken && Date.now() < cachedToken.expiresAt) {
+    return cachedToken.token
+  }
+
+  if (!shopDomain || !clientId || !clientSecret) {
     throw new Error(
-      'Shopify configuratie ontbreekt! Zorg dat SHOPIFY_SHOP_DOMAIN en SHOPIFY_ACCESS_TOKEN zijn ingesteld.'
+      'Shopify configuratie ontbreekt! Zorg dat SHOPIFY_SHOP_DOMAIN, SHOPIFY_CLIENT_ID en SHOPIFY_CLIENT_SECRET zijn ingesteld.'
     )
   }
 
-  const endpoint = `https://${shopDomain}/admin/api/2024-01/graphql.json`
+  const tokenUrl = `https://${shopDomain}/admin/oauth/access_token`
 
-  const response = await fetch(endpoint, {
+  const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({ query, variables }),
-    next: { revalidate: 60 },
-  } as RequestInit)
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('Token request failed:', errorText)
+    throw new Error(`Kon geen access token krijgen: ${response.status} ${response.statusText}`)
+  }
+
+  const data = await response.json()
+
+  // Cache de token (expires_in is in seconden, we nemen 23 uur voor zekerheid)
+  cachedToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + (23 * 60 * 60 * 1000), // 23 uur in milliseconden
+  }
+
+  return data.access_token
+}
+
+// ============================================
+// ADMIN API FETCH HELPER (met retry bij 401)
+// ============================================
+
+async function adminApiFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+  const endpoint = `https://${shopDomain}/admin/api/2024-01/graphql.json`
+
+  // Interne functie die de daadwerkelijke API call doet
+  async function doFetch(): Promise<Response> {
+    const accessToken = await getAccessToken()
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query, variables }),
+      next: { revalidate: 60 }, // Cache voor 60 seconden
+    } as RequestInit)
+  }
+
+  let response = await doFetch()
+
+  // Als we een 401 krijgen: token is ongeldig geworden
+  // Wis de cache, haal een nieuwe token op, en probeer het nog één keer
+  if (response.status === 401) {
+    console.warn('401 ontvangen van Admin API — token cache wordt gewist en opnieuw geprobeerd...')
+    cachedToken = null
+    response = await doFetch()
+  }
 
   if (!response.ok) {
     throw new Error(`Admin API fout: ${response.status} ${response.statusText}`)
@@ -341,10 +403,10 @@ function transformProduct(node: Record<string, unknown>): ShopifyProduct {
 export async function getProducts(first: number = 20): Promise<ShopifyProduct[]> {
   try {
     const data = await adminApiFetch<{ products: { edges: Array<{ node: Record<string, unknown> }> } }>(
-      PRODUCTS_QUERY, 
+      PRODUCTS_QUERY,
       { first }
     )
-    
+
     return data.products.edges.map(({ node }) => transformProduct(node))
   } catch (error) {
     console.error('Fout bij ophalen producten:', error)
@@ -380,7 +442,7 @@ export async function getProductsByTag(tag: string, batchSize: number = 50): Pro
 
     while (hasNextPage) {
       const response: ProductsByTagResponse = await adminApiFetch<ProductsByTagResponse>(
-        PRODUCTS_BY_TAG_QUERY, 
+        PRODUCTS_BY_TAG_QUERY,
         {
           first: batchSize,
           query: queryString,
@@ -417,10 +479,10 @@ export async function getProductsByTag(tag: string, batchSize: number = 50): Pro
 export async function getProductByHandle(handle: string): Promise<ShopifyProduct | null> {
   try {
     const data = await adminApiFetch<{ productByHandle: Record<string, unknown> | null }>(
-      PRODUCT_BY_HANDLE_QUERY, 
+      PRODUCT_BY_HANDLE_QUERY,
       { handle }
     )
-    
+
     if (!data.productByHandle) return null
     return transformProduct(data.productByHandle)
   } catch (error) {
@@ -450,10 +512,10 @@ export async function getProductsByHandles(handles: string[]): Promise<ShopifyPr
 export async function getCollections(first: number = 10) {
   try {
     const data = await adminApiFetch<{ collections: { edges: Array<{ node: Record<string, unknown> }> } }>(
-      COLLECTIONS_QUERY, 
+      COLLECTIONS_QUERY,
       { first }
     )
-    
+
     return data.collections.edges.map(({ node }) => node)
   } catch (error) {
     console.error('Fout bij ophalen collecties:', error)
@@ -489,7 +551,7 @@ export function formatPrice(price: ShopifyPrice): string {
 export function calculateDiscount(originalPrice: ShopifyPrice, salePrice: ShopifyPrice): number {
   const original = parseFloat(originalPrice.amount)
   const sale = parseFloat(salePrice.amount)
-  
+
   if (original <= 0) return 0
   return Math.round(((original - sale) / original) * 100)
 }
