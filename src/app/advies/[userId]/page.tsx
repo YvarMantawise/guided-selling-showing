@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { WachtScherm, AnalyseResultaat, ProductAanbevelingen } from '@/components/advies'
 import { Button } from '@/components/ui'
@@ -36,10 +36,13 @@ const POLLING_TIMEOUT = 120000
 
 export default function AdviesPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const userId = params.userId as string
+  const urlNaam = searchParams.get('naam') ?? ''
+  const urlNaamRef = useRef(urlNaam)
 
   const [status, setStatus] = useState<PageStatus>('loading')
-  const [naam, setNaam] = useState<string>('')
+  const [naam, setNaam] = useState<string>(urlNaam)
   const [advies, setAdvies] = useState<AdviesResult | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [errorMessage, setErrorMessage] = useState<string>('')
@@ -62,10 +65,10 @@ export default function AdviesPage() {
 
   const checkStatus = useCallback(async () => {
     try {
-      const response = await fetch(`/api/advies/${userId}`)
+      const response = await fetch(`/api/advies/${userId}?naam=${encodeURIComponent(urlNaamRef.current)}`)
       const data = await response.json()
 
-      if (data.naam) setNaam(data.naam)
+      if (data.naam) setNaam(prev => prev || data.naam)
 
       switch (data.status) {
         case 'pending':

@@ -16,6 +16,11 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const { status, isSpeaking, startSession, endSession } = useConversation({
+    clientTools: {
+      conversation_complete: () => {
+        // Agent signals end of conversation — onDisconnect handles redirect
+      },
+    },
     onConnect: () => {
       hadErrorRef.current = false
       setConnectionStatus('connected')

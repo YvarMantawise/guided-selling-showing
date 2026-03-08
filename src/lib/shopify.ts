@@ -1,17 +1,13 @@
 // src/lib/shopify.ts
 // ============================================
-// SHOPIFY ADMIN API CLIENT (met Client Credentials)
+// SHOPIFY STOREFRONT API CLIENT
 // ============================================
-// Dit bestand gebruikt de Client Credentials flow om producten op te halen
-// via de Admin API in plaats van de Storefront API
+// Gebruikt de Storefront API met een publiek access token.
+// Token aanmaken: Shopify Admin → Instellingen → Apps →
+// Apps ontwikkelen → [app] → Storefront API-integratie
 
-// Environment variables
-const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN // bijv: voorbeeld-store.myshopify.com
-const clientId = process.env.SHOPIFY_CLIENT_ID
-const clientSecret = process.env.SHOPIFY_CLIENT_SECRET
-
-// Cache voor de access token (verloopt na 24 uur)
-let cachedToken: { token: string; expiresAt: number } | null = null
+const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN! // bijv: berino-shop.myshopify.com
+const storefrontToken = process.env.SHOPIFY_STOREFRONT_TOKEN! // publiek Storefront API token
 
 // ============================================
 // TYPES
@@ -65,89 +61,30 @@ export interface ShopifyCollection {
 }
 
 // ============================================
-// CLIENT CREDENTIALS TOKEN FLOW
+// STOREFRONT API FETCH HELPER
 // ============================================
 
-/**
- * Haal een access token op via de Client Credentials flow
- * Tokens zijn 24 uur geldig, we cachen ze
- */
-async function getAccessToken(): Promise<string> {
-  // Check of we een geldige cached token hebben
-  if (cachedToken && Date.now() < cachedToken.expiresAt) {
-    return cachedToken.token
-  }
-
-  if (!shopDomain || !clientId || !clientSecret) {
+async function storefrontFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+  if (!shopDomain || !storefrontToken) {
     throw new Error(
-      'Shopify configuratie ontbreekt! Zorg dat SHOPIFY_SHOP_DOMAIN, SHOPIFY_CLIENT_ID en SHOPIFY_CLIENT_SECRET zijn ingesteld.'
+      'Shopify configuratie ontbreekt! Zorg dat SHOPIFY_SHOP_DOMAIN en SHOPIFY_STOREFRONT_TOKEN zijn ingesteld.'
     )
   }
 
-  const tokenUrl = `https://${shopDomain}/admin/oauth/access_token`
+  const endpoint = `https://${shopDomain}/api/2024-01/graphql.json`
 
-  const response = await fetch(tokenUrl, {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',
+      'X-Shopify-Storefront-Access-Token': storefrontToken,
     },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-  })
+    body: JSON.stringify({ query, variables }),
+    next: { revalidate: 60 },
+  } as RequestInit)
 
   if (!response.ok) {
-    const errorText = await response.text()
-    console.error('Token request failed:', errorText)
-    throw new Error(`Kon geen access token krijgen: ${response.status} ${response.statusText}`)
-  }
-
-  const data = await response.json()
-
-  // Cache de token (expires_in is in seconden, we nemen 23 uur voor zekerheid)
-  cachedToken = {
-    token: data.access_token,
-    expiresAt: Date.now() + (23 * 60 * 60 * 1000), // 23 uur in milliseconden
-  }
-
-  return data.access_token
-}
-
-// ============================================
-// ADMIN API FETCH HELPER (met retry bij 401)
-// ============================================
-
-async function adminApiFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  const endpoint = `https://${shopDomain}/admin/api/2024-01/graphql.json`
-
-  // Interne functie die de daadwerkelijke API call doet
-  async function doFetch(): Promise<Response> {
-    const accessToken = await getAccessToken()
-    return fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
-      },
-      body: JSON.stringify({ query, variables }),
-      next: { revalidate: 60 }, // Cache voor 60 seconden
-    } as RequestInit)
-  }
-
-  let response = await doFetch()
-
-  // Als we een 401 krijgen: token is ongeldig geworden
-  // Wis de cache, haal een nieuwe token op, en probeer het nog één keer
-  if (response.status === 401) {
-    console.warn('401 ontvangen van Admin API — token cache wordt gewist en opnieuw geprobeerd...')
-    cachedToken = null
-    response = await doFetch()
-  }
-
-  if (!response.ok) {
-    throw new Error(`Admin API fout: ${response.status} ${response.statusText}`)
+    throw new Error(`Storefront API fout: ${response.status} ${response.statusText}`)
   }
 
   const json = await response.json()
@@ -161,59 +98,69 @@ async function adminApiFetch<T>(query: string, variables?: Record<string, unknow
 }
 
 // ============================================
-// GRAPHQL QUERIES (Admin API versie)
+// GRAPHQL QUERIES (Storefront API)
 // ============================================
+
+const PRODUCT_FIELDS = `
+  id
+  title
+  handle
+  description
+  descriptionHtml
+  vendor
+  productType
+  tags
+  featuredImage {
+    url
+    altText
+    width
+    height
+  }
+  images(first: 5) {
+    edges {
+      node {
+        url
+        altText
+        width
+        height
+      }
+    }
+  }
+  variants(first: 10) {
+    edges {
+      node {
+        id
+        title
+        availableForSale
+        price {
+          amount
+          currencyCode
+        }
+        compareAtPrice {
+          amount
+          currencyCode
+        }
+      }
+    }
+  }
+  priceRange {
+    minVariantPrice {
+      amount
+      currencyCode
+    }
+    maxVariantPrice {
+      amount
+      currencyCode
+    }
+  }
+`
 
 const PRODUCTS_QUERY = `
   query getProducts($first: Int!) {
-    products(first: $first, query: "status:active") {
+    products(first: $first) {
       edges {
         node {
-          id
-          title
-          handle
-          description
-          descriptionHtml
-          vendor
-          productType
-          tags
-          featuredImage {
-            url
-            altText
-            width
-            height
-          }
-          images(first: 5) {
-            edges {
-              node {
-                url
-                altText
-                width
-                height
-              }
-            }
-          }
-          variants(first: 10) {
-            edges {
-              node {
-                id
-                title
-                availableForSale
-                price
-                compareAtPrice
-              }
-            }
-          }
-          priceRangeV2 {
-            minVariantPrice {
-              amount
-              currencyCode
-            }
-            maxVariantPrice {
-              amount
-              currencyCode
-            }
-          }
+          ${PRODUCT_FIELDS}
         }
       }
     }
@@ -225,51 +172,7 @@ const PRODUCTS_BY_TAG_QUERY = `
     products(first: $first, query: $query, after: $after) {
       edges {
         node {
-          id
-          title
-          handle
-          description
-          descriptionHtml
-          vendor
-          productType
-          tags
-          featuredImage {
-            url
-            altText
-            width
-            height
-          }
-          images(first: 5) {
-            edges {
-              node {
-                url
-                altText
-                width
-                height
-              }
-            }
-          }
-          variants(first: 10) {
-            edges {
-              node {
-                id
-                title
-                availableForSale
-                price
-                compareAtPrice
-              }
-            }
-          }
-          priceRangeV2 {
-            minVariantPrice {
-              amount
-              currencyCode
-            }
-            maxVariantPrice {
-              amount
-              currencyCode
-            }
-          }
+          ${PRODUCT_FIELDS}
         }
       }
       pageInfo {
@@ -282,52 +185,8 @@ const PRODUCTS_BY_TAG_QUERY = `
 
 const PRODUCT_BY_HANDLE_QUERY = `
   query getProductByHandle($handle: String!) {
-    productByHandle(handle: $handle) {
-      id
-      title
-      handle
-      description
-      descriptionHtml
-      vendor
-      productType
-      tags
-      featuredImage {
-        url
-        altText
-        width
-        height
-      }
-      images(first: 10) {
-        edges {
-          node {
-            url
-            altText
-            width
-            height
-          }
-        }
-      }
-      variants(first: 20) {
-        edges {
-          node {
-            id
-            title
-            availableForSale
-            price
-            compareAtPrice
-          }
-        }
-      }
-      priceRangeV2 {
-        minVariantPrice {
-          amount
-          currencyCode
-        }
-        maxVariantPrice {
-          amount
-          currencyCode
-        }
-      }
+    product(handle: $handle) {
+      ${PRODUCT_FIELDS.replace('images(first: 5)', 'images(first: 10)').replace('variants(first: 10)', 'variants(first: 20)')}
     }
   }
 `
@@ -354,13 +213,13 @@ const COLLECTIONS_QUERY = `
 `
 
 // ============================================
-// HELPER: Transform Admin API response naar ons format
+// HELPER: Transform Storefront API response
 // ============================================
 
 function transformProduct(node: Record<string, unknown>): ShopifyProduct {
   const images = node.images as { edges?: Array<{ node: ShopifyImage }> } | undefined
   const variants = node.variants as { edges?: Array<{ node: Record<string, unknown> }> } | undefined
-  const priceRangeV2 = node.priceRangeV2 as { minVariantPrice?: ShopifyPrice; maxVariantPrice?: ShopifyPrice } | undefined
+  const priceRange = node.priceRange as { minVariantPrice?: ShopifyPrice; maxVariantPrice?: ShopifyPrice } | undefined
 
   return {
     id: node.id as string,
@@ -377,18 +236,12 @@ function transformProduct(node: Record<string, unknown>): ShopifyProduct {
       id: e.node.id as string,
       title: e.node.title as string,
       availableForSale: e.node.availableForSale as boolean,
-      price: {
-        amount: e.node.price as string,
-        currencyCode: 'EUR',
-      },
-      compareAtPrice: e.node.compareAtPrice ? {
-        amount: e.node.compareAtPrice as string,
-        currencyCode: 'EUR',
-      } : null,
+      price: e.node.price as ShopifyPrice,
+      compareAtPrice: e.node.compareAtPrice as ShopifyPrice | null,
     })) || [],
     priceRange: {
-      minVariantPrice: priceRangeV2?.minVariantPrice || { amount: '0', currencyCode: 'EUR' },
-      maxVariantPrice: priceRangeV2?.maxVariantPrice || { amount: '0', currencyCode: 'EUR' },
+      minVariantPrice: priceRange?.minVariantPrice || { amount: '0', currencyCode: 'EUR' },
+      maxVariantPrice: priceRange?.maxVariantPrice || { amount: '0', currencyCode: 'EUR' },
     },
   }
 }
@@ -397,16 +250,12 @@ function transformProduct(node: Record<string, unknown>): ShopifyProduct {
 // EXPORTEERBARE FUNCTIES
 // ============================================
 
-/**
- * Haal meerdere producten op
- */
 export async function getProducts(first: number = 20): Promise<ShopifyProduct[]> {
   try {
-    const data = await adminApiFetch<{ products: { edges: Array<{ node: Record<string, unknown> }> } }>(
+    const data = await storefrontFetch<{ products: { edges: Array<{ node: Record<string, unknown> }> } }>(
       PRODUCTS_QUERY,
       { first }
     )
-
     return data.products.edges.map(({ node }) => transformProduct(node))
   } catch (error) {
     console.error('Fout bij ophalen producten:', error)
@@ -414,7 +263,6 @@ export async function getProducts(first: number = 20): Promise<ShopifyProduct[]>
   }
 }
 
-// Type voor de response van de products by tag query
 interface ProductsByTagResponse {
   products: {
     edges: Array<{ node: Record<string, unknown> }>
@@ -425,47 +273,31 @@ interface ProductsByTagResponse {
   }
 }
 
-/**
- * Haal alle producten op met een specifieke tag (met pagination)
- * @param tag - De tag om op te filteren (bijv. "h&h")
- * @param batchSize - Hoeveel producten per API call (max 250)
- */
 export async function getProductsByTag(tag: string, batchSize: number = 50): Promise<ShopifyProduct[]> {
   try {
     const allProducts: ShopifyProduct[] = []
     let hasNextPage = true
     let cursor: string | null = null
-
-    // Bouw de query string voor Shopify
-    // Format: tag:"h&h" AND status:active
-    const queryString = `tag:"${tag}" AND status:active`
+    const queryString = `tag:"${tag}"`
 
     while (hasNextPage) {
-      const response: ProductsByTagResponse = await adminApiFetch<ProductsByTagResponse>(
+      const response: ProductsByTagResponse = await storefrontFetch<ProductsByTagResponse>(
         PRODUCTS_BY_TAG_QUERY,
-        {
-          first: batchSize,
-          query: queryString,
-          after: cursor,
-        }
+        { first: batchSize, query: queryString, after: cursor }
       )
 
-      // Voeg de producten toe aan onze verzameling
       const products = response.products.edges.map(({ node }) => transformProduct(node))
       allProducts.push(...products)
 
-      // Check of er nog meer pagina's zijn
       hasNextPage = response.products.pageInfo.hasNextPage
       cursor = response.products.pageInfo.endCursor
 
-      // Veiligheidscheck: stop na 1000 producten om oneindige loops te voorkomen
       if (allProducts.length >= 1000) {
-        console.warn('Maximum van 1000 producten bereikt, stoppen met ophalen')
+        console.warn('Maximum van 1000 producten bereikt')
         break
       }
     }
 
-    console.log(`Totaal ${allProducts.length} producten opgehaald met tag "${tag}"`)
     return allProducts
   } catch (error) {
     console.error('Fout bij ophalen producten op tag:', error)
@@ -473,49 +305,36 @@ export async function getProductsByTag(tag: string, batchSize: number = 50): Pro
   }
 }
 
-/**
- * Haal één product op via de handle
- */
 export async function getProductByHandle(handle: string): Promise<ShopifyProduct | null> {
   try {
-    const data = await adminApiFetch<{ productByHandle: Record<string, unknown> | null }>(
+    const data = await storefrontFetch<{ product: Record<string, unknown> | null }>(
       PRODUCT_BY_HANDLE_QUERY,
       { handle }
     )
-
-    if (!data.productByHandle) return null
-    return transformProduct(data.productByHandle)
+    if (!data.product) return null
+    return transformProduct(data.product)
   } catch (error) {
     console.error('Fout bij ophalen product:', error)
     return null
   }
 }
 
-/**
- * Haal meerdere producten op via hun handles
- * Wordt gebruikt door de advies pagina voor aanbevolen producten
- */
 export async function getProductsByHandles(handles: string[]): Promise<ShopifyProduct[]> {
   try {
-    const productPromises = handles.map(handle => getProductByHandle(handle))
-    const results = await Promise.all(productPromises)
-    return results.filter((product): product is ShopifyProduct => product !== null)
+    const results = await Promise.all(handles.map(handle => getProductByHandle(handle)))
+    return results.filter((p): p is ShopifyProduct => p !== null)
   } catch (error) {
     console.error('Fout bij ophalen producten via handles:', error)
     return []
   }
 }
 
-/**
- * Haal alle collecties op
- */
 export async function getCollections(first: number = 10) {
   try {
-    const data = await adminApiFetch<{ collections: { edges: Array<{ node: Record<string, unknown> }> } }>(
+    const data = await storefrontFetch<{ collections: { edges: Array<{ node: Record<string, unknown> }> } }>(
       COLLECTIONS_QUERY,
       { first }
     )
-
     return data.collections.edges.map(({ node }) => node)
   } catch (error) {
     console.error('Fout bij ophalen collecties:', error)
@@ -523,11 +342,7 @@ export async function getCollections(first: number = 10) {
   }
 }
 
-/**
- * Haal producten uit een collectie op
- */
 export async function getCollectionProducts(_handle: string, _first: number = 20): Promise<ShopifyCollection | null> {
-  // Voor nu retourneren we null - kan later uitgebreid worden
   return null
 }
 
@@ -535,9 +350,6 @@ export async function getCollectionProducts(_handle: string, _first: number = 20
 // HULPFUNCTIES
 // ============================================
 
-/**
- * Formatteer prijs naar Nederlandse notatie
- */
 export function formatPrice(price: ShopifyPrice): string {
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
@@ -545,13 +357,9 @@ export function formatPrice(price: ShopifyPrice): string {
   }).format(parseFloat(price.amount))
 }
 
-/**
- * Bereken kortingspercentage
- */
 export function calculateDiscount(originalPrice: ShopifyPrice, salePrice: ShopifyPrice): number {
   const original = parseFloat(originalPrice.amount)
   const sale = parseFloat(salePrice.amount)
-
   if (original <= 0) return 0
   return Math.round(((original - sale) / original) * 100)
 }
