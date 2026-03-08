@@ -68,12 +68,7 @@ export interface ShopifyCollection {
 // CLIENT CREDENTIALS TOKEN FLOW
 // ============================================
 
-/**
- * Haal een access token op via de Client Credentials flow
- * Tokens zijn 24 uur geldig, we cachen ze
- */
 async function getAccessToken(): Promise<string> {
-  // Check of we een geldige cached token hebben
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
     return cachedToken.token
   }
@@ -105,11 +100,10 @@ async function getAccessToken(): Promise<string> {
   }
 
   const data = await response.json()
-  
-  // Cache de token (expires_in is in seconden, we nemen 23 uur voor zekerheid)
+
   cachedToken = {
     token: data.access_token,
-    expiresAt: Date.now() + (23 * 60 * 60 * 1000), // 23 uur in milliseconden
+    expiresAt: Date.now() + (23 * 60 * 60 * 1000),
   }
 
   return data.access_token
@@ -122,24 +116,21 @@ async function getAccessToken(): Promise<string> {
 async function adminApiFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
   const endpoint = `https://${shopDomain}/admin/api/2024-01/graphql.json`
 
-  // Interne functie die de daadwerkelijke API call doet
   async function doFetch(): Promise<Response> {
-    const accessToken = await getAccessToken()
+    const token = await getAccessToken()
     return fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
+        'X-Shopify-Access-Token': token,
       },
       body: JSON.stringify({ query, variables }),
-      next: { revalidate: 60 }, // Cache voor 60 seconden
+      next: { revalidate: 60 },
     } as RequestInit)
   }
 
   let response = await doFetch()
 
-  // Als we een 401 krijgen: token is ongeldig geworden
-  // Wis de cache, haal een nieuwe token op, en probeer het nog één keer
   if (response.status === 401) {
     console.warn('401 ontvangen van Admin API — token cache wordt gewist en opnieuw geprobeerd...')
     cachedToken = null
