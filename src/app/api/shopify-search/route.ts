@@ -51,9 +51,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ results: content })
   } catch (err) {
-    console.error('[shopify-search] Fout:', err)
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[shopify-search] Fout:', message)
     return NextResponse.json(
-      { error: 'Er ging iets mis' },
+      { error: 'Er ging iets mis', detail: message, endpoint: MCP_ENDPOINT },
       { status: 500 }
     )
   }
