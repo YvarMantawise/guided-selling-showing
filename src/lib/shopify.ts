@@ -1,13 +1,13 @@
 // src/lib/shopify.ts
 // ============================================
-// SHOPIFY STOREFRONT API CLIENT
+// SHOPIFY ADMIN API CLIENT (met Client Credentials)
 // ============================================
-// Gebruikt de Storefront API met een publiek access token.
-// Token aanmaken: Shopify Admin → Instellingen → Apps →
-// Apps ontwikkelen → [app] → Storefront API-integratie
 
-const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN! // bijv: berino-shop.myshopify.com
-const storefrontToken = process.env.SHOPIFY_STOREFRONT_TOKEN! // publiek Storefront API token
+const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN
+const clientId = process.env.SHOPIFY_CLIENT_ID
+const clientSecret = process.env.SHOPIFY_CLIENT_SECRET
+
+let cachedToken: { token: string; expiresAt: number } | null = null
 
 // ============================================
 // TYPES
@@ -61,30 +61,80 @@ export interface ShopifyCollection {
 }
 
 // ============================================
-// STOREFRONT API FETCH HELPER
+// CLIENT CREDENTIALS TOKEN FLOW
 // ============================================
 
-async function storefrontFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  if (!shopDomain || !storefrontToken) {
+async function getAccessToken(): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) {
+    return cachedToken.token
+  }
+
+  if (!shopDomain || !clientId || !clientSecret) {
     throw new Error(
-      'Shopify configuratie ontbreekt! Zorg dat SHOPIFY_SHOP_DOMAIN en SHOPIFY_STOREFRONT_TOKEN zijn ingesteld.'
+      'Shopify configuratie ontbreekt! Zorg dat SHOPIFY_SHOP_DOMAIN, SHOPIFY_CLIENT_ID en SHOPIFY_CLIENT_SECRET zijn ingesteld.'
     )
   }
 
-  const endpoint = `https://${shopDomain}/api/2024-01/graphql.json`
+  const tokenUrl = `https://${shopDomain}/admin/oauth/access_token`
 
-  const response = await fetch(endpoint, {
+  const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Storefront-Access-Token': storefrontToken,
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({ query, variables }),
-    next: { revalidate: 60 },
-  } as RequestInit)
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  })
 
   if (!response.ok) {
-    throw new Error(`Storefront API fout: ${response.status} ${response.statusText}`)
+    const errorText = await response.text()
+    console.error('Token request failed:', errorText)
+    throw new Error(`Kon geen access token krijgen: ${response.status} ${response.statusText}`)
+  }
+
+  const data = await response.json()
+
+  cachedToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + (23 * 60 * 60 * 1000),
+  }
+
+  return data.access_token
+}
+
+// ============================================
+// ADMIN API FETCH HELPER (met retry bij 401)
+// ============================================
+
+async function adminApiFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+  const endpoint = `https://${shopDomain}/admin/api/2024-01/graphql.json`
+
+  async function doFetch(): Promise<Response> {
+    const accessToken = await getAccessToken()
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query, variables }),
+      next: { revalidate: 60 },
+    } as RequestInit)
+  }
+
+  let response = await doFetch()
+
+  if (response.status === 401) {
+    console.warn('401 ontvangen van Admin API — token cache wordt gewist en opnieuw geprobeerd...')
+    cachedToken = null
+    response = await doFetch()
+  }
+
+  if (!response.ok) {
+    throw new Error(`Admin API fout: ${response.status} ${response.statusText}`)
   }
 
   const json = await response.json()
@@ -98,69 +148,59 @@ async function storefrontFetch<T>(query: string, variables?: Record<string, unkn
 }
 
 // ============================================
-// GRAPHQL QUERIES (Storefront API)
+// GRAPHQL QUERIES (Admin API versie)
 // ============================================
-
-const PRODUCT_FIELDS = `
-  id
-  title
-  handle
-  description
-  descriptionHtml
-  vendor
-  productType
-  tags
-  featuredImage {
-    url
-    altText
-    width
-    height
-  }
-  images(first: 5) {
-    edges {
-      node {
-        url
-        altText
-        width
-        height
-      }
-    }
-  }
-  variants(first: 10) {
-    edges {
-      node {
-        id
-        title
-        availableForSale
-        price {
-          amount
-          currencyCode
-        }
-        compareAtPrice {
-          amount
-          currencyCode
-        }
-      }
-    }
-  }
-  priceRange {
-    minVariantPrice {
-      amount
-      currencyCode
-    }
-    maxVariantPrice {
-      amount
-      currencyCode
-    }
-  }
-`
 
 const PRODUCTS_QUERY = `
   query getProducts($first: Int!) {
-    products(first: $first) {
+    products(first: $first, query: "status:active") {
       edges {
         node {
-          ${PRODUCT_FIELDS}
+          id
+          title
+          handle
+          description
+          descriptionHtml
+          vendor
+          productType
+          tags
+          featuredImage {
+            url
+            altText
+            width
+            height
+          }
+          images(first: 5) {
+            edges {
+              node {
+                url
+                altText
+                width
+                height
+              }
+            }
+          }
+          variants(first: 10) {
+            edges {
+              node {
+                id
+                title
+                availableForSale
+                price
+                compareAtPrice
+              }
+            }
+          }
+          priceRangeV2 {
+            minVariantPrice {
+              amount
+              currencyCode
+            }
+            maxVariantPrice {
+              amount
+              currencyCode
+            }
+          }
         }
       }
     }
@@ -172,7 +212,51 @@ const PRODUCTS_BY_TAG_QUERY = `
     products(first: $first, query: $query, after: $after) {
       edges {
         node {
-          ${PRODUCT_FIELDS}
+          id
+          title
+          handle
+          description
+          descriptionHtml
+          vendor
+          productType
+          tags
+          featuredImage {
+            url
+            altText
+            width
+            height
+          }
+          images(first: 5) {
+            edges {
+              node {
+                url
+                altText
+                width
+                height
+              }
+            }
+          }
+          variants(first: 10) {
+            edges {
+              node {
+                id
+                title
+                availableForSale
+                price
+                compareAtPrice
+              }
+            }
+          }
+          priceRangeV2 {
+            minVariantPrice {
+              amount
+              currencyCode
+            }
+            maxVariantPrice {
+              amount
+              currencyCode
+            }
+          }
         }
       }
       pageInfo {
@@ -185,8 +269,52 @@ const PRODUCTS_BY_TAG_QUERY = `
 
 const PRODUCT_BY_HANDLE_QUERY = `
   query getProductByHandle($handle: String!) {
-    product(handle: $handle) {
-      ${PRODUCT_FIELDS.replace('images(first: 5)', 'images(first: 10)').replace('variants(first: 10)', 'variants(first: 20)')}
+    productByHandle(handle: $handle) {
+      id
+      title
+      handle
+      description
+      descriptionHtml
+      vendor
+      productType
+      tags
+      featuredImage {
+        url
+        altText
+        width
+        height
+      }
+      images(first: 10) {
+        edges {
+          node {
+            url
+            altText
+            width
+            height
+          }
+        }
+      }
+      variants(first: 20) {
+        edges {
+          node {
+            id
+            title
+            availableForSale
+            price
+            compareAtPrice
+          }
+        }
+      }
+      priceRangeV2 {
+        minVariantPrice {
+          amount
+          currencyCode
+        }
+        maxVariantPrice {
+          amount
+          currencyCode
+        }
+      }
     }
   }
 `
@@ -213,13 +341,13 @@ const COLLECTIONS_QUERY = `
 `
 
 // ============================================
-// HELPER: Transform Storefront API response
+// HELPER: Transform Admin API response
 // ============================================
 
 function transformProduct(node: Record<string, unknown>): ShopifyProduct {
   const images = node.images as { edges?: Array<{ node: ShopifyImage }> } | undefined
   const variants = node.variants as { edges?: Array<{ node: Record<string, unknown> }> } | undefined
-  const priceRange = node.priceRange as { minVariantPrice?: ShopifyPrice; maxVariantPrice?: ShopifyPrice } | undefined
+  const priceRangeV2 = node.priceRangeV2 as { minVariantPrice?: ShopifyPrice; maxVariantPrice?: ShopifyPrice } | undefined
 
   return {
     id: node.id as string,
@@ -236,12 +364,18 @@ function transformProduct(node: Record<string, unknown>): ShopifyProduct {
       id: e.node.id as string,
       title: e.node.title as string,
       availableForSale: e.node.availableForSale as boolean,
-      price: e.node.price as ShopifyPrice,
-      compareAtPrice: e.node.compareAtPrice as ShopifyPrice | null,
+      price: {
+        amount: e.node.price as string,
+        currencyCode: 'EUR',
+      },
+      compareAtPrice: e.node.compareAtPrice ? {
+        amount: e.node.compareAtPrice as string,
+        currencyCode: 'EUR',
+      } : null,
     })) || [],
     priceRange: {
-      minVariantPrice: priceRange?.minVariantPrice || { amount: '0', currencyCode: 'EUR' },
-      maxVariantPrice: priceRange?.maxVariantPrice || { amount: '0', currencyCode: 'EUR' },
+      minVariantPrice: priceRangeV2?.minVariantPrice || { amount: '0', currencyCode: 'EUR' },
+      maxVariantPrice: priceRangeV2?.maxVariantPrice || { amount: '0', currencyCode: 'EUR' },
     },
   }
 }
@@ -252,7 +386,7 @@ function transformProduct(node: Record<string, unknown>): ShopifyProduct {
 
 export async function getProducts(first: number = 20): Promise<ShopifyProduct[]> {
   try {
-    const data = await storefrontFetch<{ products: { edges: Array<{ node: Record<string, unknown> }> } }>(
+    const data = await adminApiFetch<{ products: { edges: Array<{ node: Record<string, unknown> }> } }>(
       PRODUCTS_QUERY,
       { first }
     )
@@ -278,10 +412,10 @@ export async function getProductsByTag(tag: string, batchSize: number = 50): Pro
     const allProducts: ShopifyProduct[] = []
     let hasNextPage = true
     let cursor: string | null = null
-    const queryString = `tag:"${tag}"`
+    const queryString = `tag:"${tag}" AND status:active`
 
     while (hasNextPage) {
-      const response: ProductsByTagResponse = await storefrontFetch<ProductsByTagResponse>(
+      const response: ProductsByTagResponse = await adminApiFetch<ProductsByTagResponse>(
         PRODUCTS_BY_TAG_QUERY,
         { first: batchSize, query: queryString, after: cursor }
       )
@@ -307,12 +441,12 @@ export async function getProductsByTag(tag: string, batchSize: number = 50): Pro
 
 export async function getProductByHandle(handle: string): Promise<ShopifyProduct | null> {
   try {
-    const data = await storefrontFetch<{ product: Record<string, unknown> | null }>(
+    const data = await adminApiFetch<{ productByHandle: Record<string, unknown> | null }>(
       PRODUCT_BY_HANDLE_QUERY,
       { handle }
     )
-    if (!data.product) return null
-    return transformProduct(data.product)
+    if (!data.productByHandle) return null
+    return transformProduct(data.productByHandle)
   } catch (error) {
     console.error('Fout bij ophalen product:', error)
     return null
@@ -331,7 +465,7 @@ export async function getProductsByHandles(handles: string[]): Promise<ShopifyPr
 
 export async function getCollections(first: number = 10) {
   try {
-    const data = await storefrontFetch<{ collections: { edges: Array<{ node: Record<string, unknown> }> } }>(
+    const data = await adminApiFetch<{ collections: { edges: Array<{ node: Record<string, unknown> }> } }>(
       COLLECTIONS_QUERY,
       { first }
     )
