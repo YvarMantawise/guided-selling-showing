@@ -1,15 +1,17 @@
 'use client'
 
-import { useRef, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRef, useState, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useConversation } from '@elevenlabs/react'
 
 type ConnectionStatus = 'idle' | 'requesting' | 'connecting' | 'connected' | 'error'
 
 const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID!
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isEmbed = searchParams.get('embed') === '1'
   const conversationIdRef = useRef<string | null>(null)
   const hadErrorRef = useRef(false)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
@@ -64,20 +66,20 @@ export default function Home() {
   const isLoading = connectionStatus === 'requesting' || connectionStatus === 'connecting'
 
   return (
-    <main className="min-h-screen bg-berino-offwhite flex flex-col items-center justify-center px-4">
+    <main className={`${isEmbed ? 'min-h-full py-6' : 'min-h-screen'} bg-berino-offwhite flex flex-col items-center justify-center px-4`}>
       <div className="w-full max-w-lg text-center">
 
         {/* Hero */}
-        <div className="mb-10">
-          <div className="w-20 h-20 rounded-2xl bg-berino-forest flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <div className={isEmbed ? 'mb-5' : 'mb-10'}>
+          <div className={`${isEmbed ? 'w-14 h-14 rounded-xl mb-3' : 'w-20 h-20 rounded-2xl mb-6'} bg-berino-forest flex items-center justify-center mx-auto`}>
+            <svg className={`${isEmbed ? 'w-7 h-7' : 'w-10 h-10'} text-white`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
             </svg>
           </div>
-          <h1 className="font-heading text-3xl md:text-4xl font-bold text-berino-charcoal mb-3">
+          <h1 className={`font-heading ${isEmbed ? 'text-2xl' : 'text-3xl md:text-4xl'} font-bold text-berino-charcoal ${isEmbed ? 'mb-1' : 'mb-3'}`}>
             Persoonlijk advies via AI
           </h1>
-          <p className="text-berino-gray text-lg max-w-sm mx-auto">
+          <p className={`text-berino-gray ${isEmbed ? 'text-sm' : 'text-lg'} max-w-sm mx-auto`}>
             Vertel ons je wensen en ontvang binnen minuten een op maat gemaakt advies.
           </p>
         </div>
@@ -87,26 +89,26 @@ export default function Home() {
           {!isConnected && !isLoading && (
             <button
               onClick={handleStart}
-              className="w-28 h-28 rounded-full bg-berino-forest text-white shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center"
+              className={`${isEmbed ? 'w-20 h-20' : 'w-28 h-28'} rounded-full bg-berino-forest text-white shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center`}
             >
-              <svg className="w-14 h-14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+              <svg className={`${isEmbed ? 'w-10 h-10' : 'w-14 h-14'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
               </svg>
             </button>
           )}
 
           {isLoading && (
-            <div className="w-28 h-28 rounded-full border-4 border-berino-forest border-t-transparent animate-spin" />
+            <div className={`${isEmbed ? 'w-20 h-20' : 'w-28 h-28'} rounded-full border-4 border-berino-forest border-t-transparent animate-spin`} />
           )}
 
           {isConnected && (
             <div className="flex flex-col items-center gap-4">
-              <div className="relative w-28 h-28">
+              <div className={`relative ${isEmbed ? 'w-20 h-20' : 'w-28 h-28'}`}>
                 {isSpeaking && (
                   <div className="absolute inset-0 rounded-full bg-berino-forest/25 animate-ping" />
                 )}
                 <div className={`absolute inset-0 rounded-full flex items-center justify-center transition-colors ${isSpeaking ? 'bg-berino-forest' : 'bg-berino-forest/80'}`}>
-                  <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                  <svg className={`${isEmbed ? 'w-10 h-10' : 'w-14 h-14'} text-white`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
                   </svg>
                 </div>
@@ -150,14 +152,14 @@ export default function Home() {
 
         {/* Steps */}
         {!isConnected && !isLoading && (
-          <div className="mt-14 grid grid-cols-3 gap-6 text-center">
+          <div className={`${isEmbed ? 'mt-6' : 'mt-14'} grid grid-cols-3 ${isEmbed ? 'gap-3' : 'gap-6'} text-center`}>
             {[
               { step: '1', label: 'Vertel over je situatie' },
               { step: '2', label: 'Vul je gegevens in' },
               { step: '3', label: 'Ontvang je advies' },
             ].map(({ step, label }) => (
               <div key={step}>
-                <div className="w-9 h-9 rounded-full bg-berino-mint/40 text-berino-forest font-bold flex items-center justify-center mx-auto mb-2 text-sm">
+                <div className={`${isEmbed ? 'w-7 h-7' : 'w-9 h-9'} rounded-full bg-berino-mint/40 text-berino-forest font-bold flex items-center justify-center mx-auto mb-2 text-sm`}>
                   {step}
                 </div>
                 <p className="text-berino-gray text-xs leading-snug">{label}</p>
@@ -167,5 +169,13 @@ export default function Home() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
   )
 }
