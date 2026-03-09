@@ -31,8 +31,8 @@ function HomeContent() {
 
   const { status, isSpeaking, startSession, endSession } = useConversation({
     clientTools: {
-      conversation_complete: () => {
-        // Agent signals end of conversation — onDisconnect handles redirect
+      conversation_complete: async () => {
+        await endSession()
       },
       toon_product: async ({ handle }: { handle: string }) => {
         try {
