@@ -31,7 +31,7 @@ function HomeContent() {
 
   const { status, isSpeaking, startSession, endSession } = useConversation({
     clientTools: {
-      conversation_complete: async () => {
+      end_call: async () => {
         await endSession()
       },
       toon_product: async ({ handle }: { handle: string }) => {
