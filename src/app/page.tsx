@@ -34,10 +34,6 @@ function HomeContent() {
 
   const { status, isSpeaking, startSession, endSession, getId } = useConversation({
     clientTools: {
-      end_call: async () => {
-        console.log('[ElevenLabs] end_call tool aangeroepen door agent → endSession')
-        await endSessionRef.current?.()
-      },
       toon_product: async ({ handle }: { handle: string }) => {
         try {
           const res = await fetch('/api/products', {
