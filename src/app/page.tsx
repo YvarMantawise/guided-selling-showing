@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useCallback, Suspense } from 'react'
+import { useRef, useState, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useConversation } from '@elevenlabs/react'
 import Image from 'next/image'
@@ -28,10 +28,15 @@ function HomeContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [shownProducts, setShownProducts] = useState<InlineProduct[]>([])
 
-  const { status, isSpeaking, startSession, endSession } = useConversation({
+  // Refs to avoid stale closures in callbacks
+  const connectionStatusRef = useRef<ConnectionStatus>('idle')
+  const endSessionRef = useRef<(() => Promise<void>) | null>(null)
+
+  const { status, isSpeaking, startSession, endSession, getId } = useConversation({
     clientTools: {
-      end_call: () => {
-        console.log('[ElevenLabs] end_call tool aangeroepen door agent')
+      end_call: async () => {
+        console.log('[ElevenLabs] end_call tool aangeroepen door agent → endSession')
+        await endSessionRef.current?.()
       },
       toon_product: async ({ handle }: { handle: string }) => {
         try {
@@ -59,15 +64,17 @@ function HomeContent() {
       },
     },
     onConnect: () => {
-      console.log('[ElevenLabs] onConnect - sessie gestart')
+      console.log('[ElevenLabs] onConnect')
+      const cid = getId()
+      if (cid) conversationIdRef.current = cid
       setConnectionStatus('connected')
     },
     onDisconnect: () => {
-      console.log('[ElevenLabs] onDisconnect - sessie beëindigd, redirect naar /rapport')
-      setConnectionStatus('idle')
-      const cid = conversationIdRef.current ?? ''
-      console.log('[ElevenLabs] conversationId:', cid)
-      router.push(`/rapport?cid=${cid}`)
+      console.log('[ElevenLabs] onDisconnect, connectionStatus was:', connectionStatusRef.current)
+      if (connectionStatusRef.current === 'connected') {
+        setConnectionStatus('idle')
+        router.push(`/rapport?cid=${conversationIdRef.current ?? ''}`)
+      }
     },
     onError: (message) => {
       console.error('[ElevenLabs] onError:', message)
@@ -75,6 +82,15 @@ function HomeContent() {
       setErrorMessage('Er ging iets mis met de verbinding. Probeer het opnieuw.')
     },
   })
+
+  // Keep refs in sync with current values
+  useEffect(() => {
+    connectionStatusRef.current = connectionStatus
+  }, [connectionStatus])
+
+  useEffect(() => {
+    endSessionRef.current = endSession
+  }, [endSession])
 
   const handleStart = useCallback(async () => {
     setErrorMessage(null)
@@ -94,7 +110,6 @@ function HomeContent() {
 
   const handleStop = useCallback(async () => {
     await endSession()
-    setConnectionStatus('idle')
   }, [endSession])
 
   const isConnected = status === 'connected'
