@@ -24,16 +24,13 @@ function HomeContent() {
   const isEmbed = searchParams.get('embed') === '1'
   const shopDomain = process.env.NEXT_PUBLIC_SHOPIFY_SHOP_DOMAIN
   const conversationIdRef = useRef<string | null>(null)
-  const hadErrorRef = useRef(false)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [shownProducts, setShownProducts] = useState<InlineProduct[]>([])
 
   const { status, isSpeaking, startSession, endSession } = useConversation({
     clientTools: {
-      end_call: async () => {
-        await endSession()
-      },
+      end_call: () => {},
       toon_product: async ({ handle }: { handle: string }) => {
         try {
           const res = await fetch('/api/products', {
@@ -60,19 +57,15 @@ function HomeContent() {
       },
     },
     onConnect: () => {
-      hadErrorRef.current = false
       setConnectionStatus('connected')
     },
     onDisconnect: () => {
       setConnectionStatus('idle')
-      if (!hadErrorRef.current) {
-        const cid = conversationIdRef.current ?? ''
-        router.push(`/rapport?cid=${cid}`)
-      }
+      const cid = conversationIdRef.current ?? ''
+      router.push(`/rapport?cid=${cid}`)
     },
     onError: (message) => {
       console.error('Conversation error:', message)
-      hadErrorRef.current = true
       setConnectionStatus('error')
       setErrorMessage('Er ging iets mis met de verbinding. Probeer het opnieuw.')
     },
