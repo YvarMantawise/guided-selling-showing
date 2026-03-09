@@ -31,6 +31,8 @@ function HomeContent() {
   // Refs to avoid stale closures in callbacks
   const connectionStatusRef = useRef<ConnectionStatus>('idle')
   const endSessionRef = useRef<(() => Promise<void>) | null>(null)
+  const agentHasSpokenRef = useRef(false)
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { status, isSpeaking, startSession, endSession, getId } = useConversation({
     clientTools: {
@@ -114,6 +116,38 @@ function HomeContent() {
 
   const isConnected = status === 'connected'
   const isLoading = connectionStatus === 'requesting' || connectionStatus === 'connecting'
+
+  // Fallback: 6 seconden stilte nadat de agent gesproken heeft → automatisch afronden
+  useEffect(() => {
+    if (!isConnected) {
+      agentHasSpokenRef.current = false
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current)
+        silenceTimerRef.current = null
+      }
+      return
+    }
+
+    if (isSpeaking) {
+      agentHasSpokenRef.current = true
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current)
+        silenceTimerRef.current = null
+      }
+    } else if (agentHasSpokenRef.current) {
+      silenceTimerRef.current = setTimeout(() => {
+        console.log('[ElevenLabs] 6s stilte na agent → automatisch afronden')
+        endSessionRef.current?.()
+      }, 6000)
+    }
+
+    return () => {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current)
+        silenceTimerRef.current = null
+      }
+    }
+  }, [isSpeaking, isConnected])
 
   const formatPrice = (amount: string, currencyCode: string) =>
     new Intl.NumberFormat('nl-NL', { style: 'currency', currency: currencyCode }).format(parseFloat(amount))
