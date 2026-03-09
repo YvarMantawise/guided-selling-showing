@@ -30,7 +30,9 @@ function HomeContent() {
 
   const { status, isSpeaking, startSession, endSession } = useConversation({
     clientTools: {
-      end_call: () => {},
+      end_call: () => {
+        console.log('[ElevenLabs] end_call tool aangeroepen door agent')
+      },
       toon_product: async ({ handle }: { handle: string }) => {
         try {
           const res = await fetch('/api/products', {
@@ -57,15 +59,18 @@ function HomeContent() {
       },
     },
     onConnect: () => {
+      console.log('[ElevenLabs] onConnect - sessie gestart')
       setConnectionStatus('connected')
     },
     onDisconnect: () => {
+      console.log('[ElevenLabs] onDisconnect - sessie beëindigd, redirect naar /rapport')
       setConnectionStatus('idle')
       const cid = conversationIdRef.current ?? ''
+      console.log('[ElevenLabs] conversationId:', cid)
       router.push(`/rapport?cid=${cid}`)
     },
     onError: (message) => {
-      console.error('Conversation error:', message)
+      console.error('[ElevenLabs] onError:', message)
       setConnectionStatus('error')
       setErrorMessage('Er ging iets mis met de verbinding. Probeer het opnieuw.')
     },
