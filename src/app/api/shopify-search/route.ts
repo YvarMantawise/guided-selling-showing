@@ -12,11 +12,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { query } = body
 
+    console.log('[shopify-search] Zoekopdracht ontvangen:', { query, body })
+
     if (!query) {
+      console.warn('[shopify-search] Geen query meegegeven')
       return NextResponse.json({ error: 'query is verplicht' }, { status: 400 })
     }
 
     const results = await searchProducts(query)
+    console.log(`[shopify-search] ${results.length} resultaten voor query "${query}":`, results.map(r => r.handle))
+
     return NextResponse.json({ results })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
