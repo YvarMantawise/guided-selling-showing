@@ -2,6 +2,7 @@
 // ============================================
 // Product zoekfunctie via Shopify Admin API.
 // Wordt aangeroepen als webhook tool vanuit ElevenLabs.
+// Deploy check: 2026-03-10
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
